@@ -2,10 +2,525 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>测试页面</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>安全访问验证</title>
+  <!-- 引入 Tailwind CSS 框架 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入 Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    /* 密码错误时的震颤动画 */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+    .animate-shake {
+      animation: shake 0.4s ease-in-out;
+    }
+    /* 光晕呼吸背景效果 */
+    .glow-bg {
+      background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15) 0%, rgba(15, 23, 42, 0) 70%);
+    }
+  </style>
 </head>
-<body>
-  <h1>GitHub Pages 部署成功！</h1>
-  <p>测试页面正常运行。</p>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 relative overflow-hidden select-none">
+
+  <!-- 背景装饰光环 -->
+  <div class="absolute inset-0 glow-bg pointer-events-none"></div>
+  <div class="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+  <!-- 主容器 -->
+  <main class="w-full max-w-md relative z-10">
+
+    <!-- 1. 密码输入卡片 -->
+    <div id="authCard" class="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-8 shadow-2xl transition-all duration-500 ease-out">
+      <!-- 图标与标题 -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-4 shadow-inner">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight text-white">受保护的访问</h1>
+        <p class="text-sm text-slate-400 mt-1">请输入授权访问密钥以查看内容</p>
+      </div>
+
+      <!-- 输入表单 -->
+      <form id="passwordForm" onsubmit="handleVerification(event)" class="space-y-5">
+        <div>
+          <label for="passwordInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">安全密码</label>
+          <div class="relative">
+            <input 
+              type="password" 
+              id="passwordInput" 
+              placeholder="••••••••••••••••" 
+              autocomplete="current-password"
+              class="w-full px-4 py-3 bg-slate-950/60 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 text-sm"
+              required
+            />
+            <button 
+              type="button" 
+              id="togglePassword" 
+              tabindex="-1"
+              onclick="toggleVisibility()" 
+              class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 focus:outline-none transition">
+              <svg id="eyeIcon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 错误提示文本栏 -->
+        <div id="errorMessage" class="text-xs text-rose-400 hidden flex items-center gap-1.5 transition-all">
+          <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+          </svg>
+          <span id="errorText">密码错误，请重新核对后输入</span>
+        </div>
+
+        <!-- 锁定倒计时横幅 -->
+        <div id="lockoutBanner" class="hidden p-3.5 bg-rose-950/60 border border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-rose-400 shrink-0 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>尝试次数过多，已安全锁定</span>
+          </div>
+          <span id="lockoutTimer" class="font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded">30s</span>
+        </div>
+
+        <!-- 提交验证按钮 -->
+        <button 
+          type="submit" 
+          id="submitButton"
+          class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed text-white font-medium rounded-xl shadow-lg shadow-indigo-600/30 transition-all duration-200 transform active:scale-[0.99] flex items-center justify-center gap-2">
+          <span id="submitBtnText">解密并进入</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </button>
+      </form>
+    </div>
+
+    <!-- 2. 验证成功后的欢迎卡片（默认隐藏） -->
+    <div id="welcomeCard" class="hidden opacity-0 scale-95 bg-slate-900/90 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-10 shadow-2xl transition-all duration-700 ease-out text-center">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mb-6 shadow-lg shadow-emerald-500/10 animate-bounce">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+
+      <div class="space-y-3">
+        <span class="inline-block px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold rounded-full tracking-wider uppercase">验证已通过</span>
+        <h2 class="text-3xl font-extrabold text-white tracking-tight">你好,我是LZF</h2>
+        <p class="text-slate-400 text-sm max-w-xs mx-auto">欢迎访问受保护的个人空间。页面内容已成功解密呈现。</p>
+      </div>
+
+      <div class="mt-8 pt-6 border-t border-slate-800">
+        <button 
+          onclick="lockSession()" 
+          class="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center justify-center gap-1.5 mx-auto">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          重新锁定页面
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 主页左下角设置按钮（仅在验证通过进入主页后显示） -->
+  <button 
+    id="settingsBtn" 
+    onclick="openSettingsModal()" 
+    class="hidden fixed bottom-6 left-6 z-20 flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-slate-300 hover:text-white shadow-xl backdrop-blur-md transition-all duration-200 group">
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-400 group-hover:rotate-90 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+    <span class="text-xs font-medium">设置</span>
+  </button>
+
+  <!-- 修改密码设置弹窗 -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm transition-opacity">
+    <div id="settingsModalContent" class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+          <h3 class="text-base font-bold text-white">安全设置 · 修改密码</h3>
+        </div>
+        <button onclick="closeSettingsModal()" class="text-slate-500 hover:text-slate-300 transition">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="changePasswordForm" onsubmit="handleChangePassword(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1.5">当前密码</label>
+          <input 
+            type="password" 
+            id="currentPwdInput" 
+            placeholder="请输入当前正在使用的密码"
+            class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+            required 
+          />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1.5">新密码</label>
+          <input 
+            type="password" 
+            id="newPwdInput" 
+            placeholder="请输入新密码"
+            class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+            required 
+          />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1.5">确认新密码</label>
+          <input 
+            type="password" 
+            id="confirmPwdInput" 
+            placeholder="请再次输入新密码"
+            class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+            required 
+          />
+        </div>
+
+        <!-- 弹窗状态反馈消息 -->
+        <div id="settingsFeedback" class="hidden text-xs rounded-lg p-2.5"></div>
+
+        <div class="flex items-center justify-between pt-2">
+          <button 
+            type="button" 
+            onclick="resetDefaultPassword()" 
+            class="text-xs text-slate-500 hover:text-indigo-400 transition underline underline-offset-4">
+            恢复初始默认密码
+          </button>
+          <div class="flex gap-2">
+            <button 
+              type="button" 
+              onclick="closeSettingsModal()" 
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition">
+              取消
+            </button>
+            <button 
+              type="submit" 
+              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl shadow-lg shadow-indigo-600/20 transition">
+              保存修改
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * 安全配置与状态管理
+     * 解决 Bug 说明：
+     * 之前使用 crypto.subtle.digest 在非 HTTPS 或本地双击打开 (file://) 时浏览器会报错拒绝执行，
+     * 且输入框首尾若不小心带入空格会导致哈希不匹配。
+     * 现已改为全环境兼容的密码校验机制，并自动去除首尾误触空格，默认初始密码为：liufan
+     */
+    const DEFAULT_PASSWORD = "liufan";
+    const STORAGE_KEY_PWD = "lzf_custom_password";
+    const STORAGE_KEY_FAILS = "lzf_failed_attempts";
+    const STORAGE_KEY_LOCK_UNTIL = "lzf_lockout_until";
+
+    const MAX_ATTEMPTS = 5; // 最大允许连续错误次数
+    const LOCKOUT_DURATION_MS = 30 * 1000; // 锁定时长：30秒
+
+    let countdownInterval = null;
+
+    // 获取当前有效密码（优先读取用户修改后的本地密码，否则使用默认密码 liufan）
+    function getActivePassword() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_PWD);
+        return saved !== null ? saved : DEFAULT_PASSWORD;
+      } catch (e) {
+        return DEFAULT_PASSWORD;
+      }
+    }
+
+    // 保存自定义密码
+    function setActivePassword(newPwd) {
+      try {
+        localStorage.setItem(STORAGE_KEY_PWD, newPwd);
+      } catch (e) {
+        console.warn("本地存储受限，仅当前会话生效");
+      }
+    }
+
+    // 获取错误次数与锁定时间戳
+    function getSecurityState() {
+      try {
+        const fails = parseInt(localStorage.getItem(STORAGE_KEY_FAILS) || "0", 10);
+        const lockUntil = parseInt(localStorage.getItem(STORAGE_KEY_LOCK_UNTIL) || "0", 10);
+        return { fails, lockUntil };
+      } catch (e) {
+        return { fails: 0, lockUntil: 0 };
+      }
+    }
+
+    // 更新安全状态
+    function setSecurityState(fails, lockUntil) {
+      try {
+        localStorage.setItem(STORAGE_KEY_FAILS, String(fails));
+        localStorage.setItem(STORAGE_KEY_LOCK_UNTIL, String(lockUntil));
+      } catch (e) {}
+    }
+
+    // 检查并维护锁定状态UI
+    function checkLockoutStatus() {
+      const { lockUntil } = getSecurityState();
+      const now = Date.now();
+      const inputEl = document.getElementById('passwordInput');
+      const submitButton = document.getElementById('submitButton');
+      const lockoutBanner = document.getElementById('lockoutBanner');
+      const lockoutTimer = document.getElementById('lockoutTimer');
+      const errorMessage = document.getElementById('errorMessage');
+
+      if (lockUntil > now) {
+        // 处于锁定期间
+        const remainingSeconds = Math.ceil((lockUntil - now) / 1000);
+        inputEl.disabled = true;
+        submitButton.disabled = true;
+        errorMessage.classList.add('hidden');
+        lockoutBanner.classList.remove('hidden');
+        lockoutTimer.textContent = `${remainingSeconds}s`;
+
+        if (!countdownInterval) {
+          countdownInterval = setInterval(() => {
+            const currentNow = Date.now();
+            const left = Math.ceil((lockUntil - currentNow) / 1000);
+            if (left <= 0) {
+              clearInterval(countdownInterval);
+              countdownInterval = null;
+              setSecurityState(0, 0);
+              unlockFormUI();
+            } else {
+              lockoutTimer.textContent = `${left}s`;
+            }
+          }, 250);
+        }
+        return true;
+      } else {
+        if (lockUntil !== 0) {
+          setSecurityState(0, 0);
+        }
+        unlockFormUI();
+        return false;
+      }
+    }
+
+    // 解除表单锁定状态
+    function unlockFormUI() {
+      const inputEl = document.getElementById('passwordInput');
+      const submitButton = document.getElementById('submitButton');
+      const lockoutBanner = document.getElementById('lockoutBanner');
+
+      inputEl.disabled = false;
+      submitButton.disabled = false;
+      lockoutBanner.classList.add('hidden');
+    }
+
+    // 处理表单验证
+    function handleVerification(event) {
+      event.preventDefault();
+      
+      // 若处于锁定状态则直接拦截
+      if (checkLockoutStatus()) return;
+
+      const inputEl = document.getElementById('passwordInput');
+      const authCard = document.getElementById('authCard');
+      const welcomeCard = document.getElementById('welcomeCard');
+      const errorMessage = document.getElementById('errorMessage');
+      const errorText = document.getElementById('errorText');
+      const settingsBtn = document.getElementById('settingsBtn');
+      
+      // 自动去除首尾可能误触的空格，同时支持原样比对
+      const rawValue = inputEl.value;
+      const trimmedValue = rawValue.trim();
+      const targetPassword = getActivePassword();
+
+      if (rawValue === targetPassword || trimmedValue === targetPassword) {
+        // 验证通过：清零错误记录
+        setSecurityState(0, 0);
+        errorMessage.classList.add('hidden');
+        
+        // 触发离开动画
+        authCard.classList.add('opacity-0', 'scale-95');
+        
+        setTimeout(() => {
+          authCard.classList.add('hidden');
+          welcomeCard.classList.remove('hidden');
+          settingsBtn.classList.remove('hidden'); // 显示左下角设置按钮
+          
+          requestAnimationFrame(() => {
+            welcomeCard.classList.remove('opacity-0', 'scale-95');
+            welcomeCard.classList.add('opacity-100', 'scale-100');
+          });
+        }, 300);
+
+      } else {
+        // 密码错误：累加错误次数
+        let { fails } = getSecurityState();
+        fails += 1;
+
+        if (fails >= MAX_ATTEMPTS) {
+          // 达到阈值，触发30秒锁定
+          const lockUntil = Date.now() + LOCKOUT_DURATION_MS;
+          setSecurityState(fails, lockUntil);
+          checkLockoutStatus();
+        } else {
+          // 未达阈值，提示剩余机会
+          setSecurityState(fails, 0);
+          const remaining = MAX_ATTEMPTS - fails;
+          errorText.textContent = `密码错误，还剩 ${remaining} 次尝试机会（超限将锁定 30 秒）`;
+          errorMessage.classList.remove('hidden');
+          inputEl.focus();
+          inputEl.select();
+        }
+
+        // 触发卡片震动动画
+        authCard.classList.remove('animate-shake');
+        void authCard.offsetWidth;
+        authCard.classList.add('animate-shake');
+      }
+    }
+
+    // 切换密码显示/隐藏状态
+    function toggleVisibility() {
+      const inputEl = document.getElementById('passwordInput');
+      const eyeIcon = document.getElementById('eyeIcon');
+      
+      if (inputEl.type === 'password') {
+        inputEl.type = 'text';
+        eyeIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+        `;
+      } else {
+        inputEl.type = 'password';
+        eyeIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        `;
+      }
+    }
+
+    // 重新锁定功能
+    function lockSession() {
+      const authCard = document.getElementById('authCard');
+      const welcomeCard = document.getElementById('welcomeCard');
+      const inputEl = document.getElementById('passwordInput');
+      const settingsBtn = document.getElementById('settingsBtn');
+      
+      closeSettingsModal();
+      settingsBtn.classList.add('hidden');
+      welcomeCard.classList.remove('opacity-100', 'scale-100');
+      welcomeCard.classList.add('opacity-0', 'scale-95');
+
+      setTimeout(() => {
+        welcomeCard.classList.add('hidden');
+        inputEl.value = '';
+        authCard.classList.remove('hidden');
+        
+        requestAnimationFrame(() => {
+          authCard.classList.remove('opacity-0', 'scale-95');
+          authCard.classList.add('opacity-100', 'scale-100');
+          if (!checkLockoutStatus()) {
+            inputEl.focus();
+          }
+        });
+      }, 300);
+    }
+
+    // 打开左下角设置弹窗
+    function openSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      const feedback = document.getElementById('settingsFeedback');
+      document.getElementById('changePasswordForm').reset();
+      feedback.classList.add('hidden');
+      modal.classList.remove('hidden');
+      document.getElementById('currentPwdInput').focus();
+    }
+
+    // 关闭设置弹窗
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    // 显示设置弹窗内的提示信息
+    function showSettingsFeedback(message, isSuccess) {
+      const feedback = document.getElementById('settingsFeedback');
+      feedback.textContent = message;
+      feedback.className = `text-xs rounded-lg p-2.5 ${
+        isSuccess 
+          ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
+          : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+      }`;
+      feedback.classList.remove('hidden');
+    }
+
+    // 处理修改密码保存
+    function handleChangePassword(event) {
+      event.preventDefault();
+      const currentInput = document.getElementById('currentPwdInput').value.trim();
+      const newInput = document.getElementById('newPwdInput').value.trim();
+      const confirmInput = document.getElementById('confirmPwdInput').value.trim();
+      const activePwd = getActivePassword();
+
+      if (currentInput !== activePwd) {
+        showSettingsFeedback('当前密码输入不正确，请核对后再试。', false);
+        return;
+      }
+
+      if (!newInput) {
+        showSettingsFeedback('新密码不能为空。', false);
+        return;
+      }
+
+      if (newInput !== confirmInput) {
+        showSettingsFeedback('两次输入的新密码不一致。', false);
+        return;
+      }
+
+      setActivePassword(newInput);
+      showSettingsFeedback('密码已成功修改！下次锁定后请使用新密码访问。', true);
+      
+      setTimeout(() => {
+        closeSettingsModal();
+      }, 1200);
+    }
+
+    // 恢复初始默认密码 (liufan)
+    function resetDefaultPassword() {
+      try {
+        localStorage.removeItem(STORAGE_KEY_PWD);
+      } catch (e) {}
+      document.getElementById('changePasswordForm').reset();
+      showSettingsFeedback(`已恢复初始默认密码：${DEFAULT_PASSWORD}`, true);
+    }
+
+    // 初始化页面
+    window.onload = function() {
+      if (!checkLockoutStatus()) {
+        document.getElementById('passwordInput').focus();
+      }
+    };
+  </script>
 </body>
 </html>
